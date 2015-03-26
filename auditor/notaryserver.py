@@ -100,7 +100,7 @@ def process_messages(msg):
     elif msg.startswith('commit_hash:'):
 	commit_hash = base64.b64decode(msg[len('commit_hash:'):])
 	response_hash = commit_hash[:32]
-	data_to_be_signed = response_hash + tlsns.pms2
+	data_to_be_signed = response_hash + tlsns.pms2 + shared.bi2ba(tlsns.server_modulus)
 	signature = sign_data(data_to_be_signed)
 	return 'pms2:',tlsns.pms2 + signature
     else:
