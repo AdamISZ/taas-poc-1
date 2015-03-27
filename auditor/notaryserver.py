@@ -14,6 +14,7 @@ time_str = time.strftime("%d-%b-%Y-%H-%M-%S", time.gmtime())
 #Globals
 rs_choice = 0
 tlsns = None
+next_req = None
 
 def sign_data(data_to_be_signed):
     #TODO clean up
@@ -41,13 +42,17 @@ class myHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):                
 	print ('minihttp received ' + self.path + ' request',end='\r\n')
 	# example HEAD string "/page_marked?accno=12435678&sum=1234.56&time=1383389835"
-	resp, dat = process_messages(self.path[1:])
+	if next_req and not self.path[1:].startswith(next_req):
+		resp, dat = 'busy:','000'
+	else:    
+	    resp, dat = process_messages(self.path[1:])
 	dat = base64.b64encode(dat)
 	self.respond({'response': resp, 'data': dat})
 	#TODO handle unexpected requests
 		
 def process_messages(msg):
     global tlsns
+    global next_req
     if msg.startswith('rcr_rsr_rsname_n:'):                
 	msg_data = base64.b64decode(msg[len('rcr_rsr_rsname_n:'):])
 	tlsns = shared.TLSNClientSession()
@@ -74,6 +79,7 @@ def process_messages(msg):
 	return 'rrsapms_rhmac_rsapms:',rrsapms+rss.p_auditor+shared.bi2ba(tlsns.enc_second_half_pms)            
 	  
     elif msg.startswith('cs_cr_sr_hmacms_verifymd5sha:'): 
+	next_req = 'verify_md5sha2:'
 	print (time.strftime('%H:%M:%S', time.localtime()) + ': Processing data from the auditee.')
 	request = base64.b64decode(msg[len('cs_cr_sr_hmacms_verifymd5sha:'):])
 	assert len(request) == 125
@@ -93,18 +99,20 @@ def process_messages(msg):
 	return 'hmacms_hmacek_hmacverify:',hmacms_hmacek_hmacverify
     
     elif msg.startswith('verify_md5sha2:'):
+	next_req = 'commit_hash:'	
 	md5sha2 = base64.b64decode(msg[len('verify_md5sha2:'):])
 	md5hmac2 = tlsns.get_verify_hmac(md5sha2[16:],md5sha2[:16],half=1,is_for_client=False)
 	return 'verify_hmac2:', md5hmac2
     
     elif msg.startswith('commit_hash:'):
+	next_req = None		
 	commit_hash = base64.b64decode(msg[len('commit_hash:'):])
 	response_hash = commit_hash[:32]
 	data_to_be_signed = response_hash + tlsns.pms2 + shared.bi2ba(tlsns.server_modulus)
 	signature = sign_data(data_to_be_signed)
 	return 'pms2:',tlsns.pms2 + signature
     else:
-	assert False, "received invalid argument to process_messages"
+	return 'busy:','000'
         
 if __name__ == "__main__":
     import shared
