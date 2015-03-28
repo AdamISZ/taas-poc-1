@@ -15,6 +15,7 @@ time_str = time.strftime("%d-%b-%Y-%H-%M-%S", time.gmtime())
 rs_choice = 0
 tlsns = None
 next_req = None
+time_of_last_req = -1
 
 def sign_data(data_to_be_signed):
     #TODO clean up
@@ -39,16 +40,20 @@ class myHandler(BaseHTTPRequestHandler):
 	    self.send_header(key, headers[key])
 	self.end_headers()
     
-    def do_HEAD(self):                
+    def do_HEAD(self): 
+	global next_req
+	global time_of_last_req
 	print ('minihttp received ' + self.path + ' request',end='\r\n')
-	# example HEAD string "/page_marked?accno=12435678&sum=1234.56&time=1383389835"
+	if int(time.time())-time_of_last_req > 20:
+	    #reopen for business if current user has gone away
+	    next_req = None    
 	if next_req and not self.path[1:].startswith(next_req):
-		resp, dat = 'busy:','000'
-	else:    
+	    resp, dat = 'busy:','000'
+	else: 
+	    time_of_last_req = int(time.time())
 	    resp, dat = process_messages(self.path[1:])
 	dat = base64.b64encode(dat)
 	self.respond({'response': resp, 'data': dat})
-	#TODO handle unexpected requests
 		
 def process_messages(msg):
     global tlsns
