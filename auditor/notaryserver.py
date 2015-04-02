@@ -21,8 +21,9 @@ def sign_data(data_to_be_signed):
     #TODO clean up
     with open('tempsigfile','wb') as f: f.write(data_to_be_signed)
     pkl = os.path.expanduser('~/sim_rem/taas_privkey.pem')
-    return subprocess.check_output(['openssl','dgst','-ecdsa-with-SHA1',
-    '-sign',pkl,'-keyform','PEM', 'tempsigfile'])
+    return subprocess.check_output(['openssl','rsautl',
+    '-sign','-inkey',pkl,'-keyform','PEM', '-in','tempsigfile'])
+
     
 
 class myHandler(BaseHTTPRequestHandler):
@@ -113,7 +114,7 @@ def process_messages(msg):
 	next_req = None		
 	commit_hash = base64.b64decode(msg[len('commit_hash:'):])
 	response_hash = commit_hash[:32]
-	data_to_be_signed = response_hash + tlsns.pms2 + shared.bi2ba(tlsns.server_modulus)
+	data_to_be_signed = hashlib.sha256(response_hash + tlsns.pms2 + shared.bi2ba(tlsns.server_modulus)).digest()
 	signature = sign_data(data_to_be_signed)
 	return 'pms2:',tlsns.pms2 + signature
     else:
