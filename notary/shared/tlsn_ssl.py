@@ -1,11 +1,5 @@
-from __future__ import print_function
-import math, os, binascii, hmac, time, re
+import math, os, binascii, hmac
 from hashlib import md5, sha1
-from shared.tlsn_common import bigint_to_list as bigint_to_list
-from shared.tlsn_common import ba2int as ba2int, bi2ba as bi2ba
-from shared.tlsn_common import xor as xor
-from base64 import b64encode,b64decode
-import tlsn_common
 #constants
 md5_hash_len = 16
 sha1_hash_len = 20
@@ -26,6 +20,28 @@ tlsn_cipher_suites =  {47:['AES128',20,20,16,16,16,16],\
 #for each cipher suite, for ease of reference
 for v in tlsn_cipher_suites.values():
     v.append(sum(v[1:]))
+
+
+def bi2ba(bigint,fixed=None):
+    m_bytes = []
+    while bigint != 0:
+        b = bigint%256
+        m_bytes.insert( 0, b )
+        bigint //= 256
+    if fixed:
+        padding = fixed - len(m_bytes)
+        if padding > 0: m_bytes = [0]*padding + m_bytes
+    return bytearray(m_bytes)
+
+def xor(a,b):
+    return bytearray([ord(a) ^ ord(b) for a,b in zip(a,b)])
+
+#convert bytearray into int
+def ba2int(byte_array):
+    return int(str(byte_array).encode('hex'), 16)
+
+
+
 
 class TLSNSSLError(Exception):
     def __init__(self, msg, data=None):
@@ -136,16 +152,18 @@ class TLSNClientSession(object):
         if not (self.enc_first_half_pms and self.enc_second_half_pms and self.server_modulus):
             raise TLSNSSLError("Failed to set encpms")
             
-        self.enc_pms =  self.enc_first_half_pms * self.enc_second_half_pms % self.server_modulus
+        self.enc_pms =  bi2ba (ba2int(self.enc_first_half_pms) * ba2int(self.enc_second_half_pms) % ba2int(self.server_modulus))
         return self.enc_pms
      
     def set_enc_second_half_pms(self):
         if not self.server_modulus:
             raise TLSNSSLError("Failed to set enc second half pms")
-        ones_length = 103+ba2int(self.server_mod_length)-256
+        ones_length = 103+self.server_mod_length-256
         self.pms2 =  self.auditor_secret + ('\x00' * (24-self.n_auditor_entropy-1)) + '\x01'
-        self.enc_second_half_pms = pow( ba2int('\x01'+('\x01'*(ones_length))+\
-        self.auditor_padding_secret+ ('\x00'*25)+self.pms2), self.server_exponent, self.server_modulus )
+        self.enc_second_half_pms = bi2ba( pow( 
+            ba2int('\x01'+('\x01'*(ones_length))+self.auditor_padding_secret+ ('\x00'*25)+self.pms2),
+            self.server_exponent,
+            ba2int(self.server_modulus)))
 
     def set_auditor_secret(self):
         '''Sets up the auditor's half of the preparatory

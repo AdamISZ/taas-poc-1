@@ -1,2 +1,2 @@
-# taas-poc-1
-tlsnotary-as-a-service server side code, rudimentary set up for testing
+TLSNotary-as-a-service
+Files and instructions to setup oracle machines on AWS.
