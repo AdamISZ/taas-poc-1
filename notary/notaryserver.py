@@ -13,6 +13,12 @@ signing_server_address = None
 
 reliable_sites = {} #format {'github.com': {'expires':'date', 'modulus':data}, 'archive.org': {...}   }
 
+def sign_data(data_to_be_signed):
+    #TODO clean up
+    with open('tempsigfile','wb') as f: f.write(data_to_be_signed)
+    pkl = os.path.expanduser('~/sim_rem/taas_privkey.pem')
+    return subprocess.check_output(['openssl','rsautl','-sign','-inkey',pkl,'-keyform','PEM', '-in','tempsigfile'])
+
 def import_reliable_sites(d):
     with open(os.path.join(d,'pubkeys.txt'),'rb') as f: raw = f.read()
     lines = raw.split('\n')
@@ -108,7 +114,7 @@ class MessageProcessor(object):
             commit_hash = base64.b64decode(b64data)
             response_hash = commit_hash[:32]
             data_to_be_signed = hashlib.sha256(response_hash + self.tlsns.pms2 + self.tlsns.server_modulus).digest()
-
+            '''
             uid = '/dev/shm/' + ''.join(random.choice(string.ascii_letters + string.digits) for x in range(10))
             with open(uid, 'wb') as f: f.write(data_to_be_signed)
             mysig = subprocess.check_output(['openssl','rsautl','-sign','-inkey', '/dev/shm/main_server_private.pem' ,'-keyform','PEM', '-in', uid])
@@ -119,7 +125,9 @@ class MessageProcessor(object):
             sock.send(data_to_be_signed+mysig)
             signing_server_sig = sock.recv(512)
             sock.close()
-            return 'pms2', base64.b64encode(self.tlsns.pms2+signing_server_sig)
+            '''
+            signature = sign_data(data_to_be_signed)
+            return 'pms2', base64.b64encode(self.tlsns.pms2+signature)
         else:
             raise Exception("invalid request process_messages")
 
